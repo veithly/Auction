@@ -26,6 +26,7 @@ contract Auction {
 
     function bid() public payable {
         require(block.timestamp < auctionEnd, "Auction already ended");
+        require(msg.value > highestBid, "Bid must be higher than current highest bid");
 
         // 实现冷却检查
         if (lastBidTime[msg.sender] != 0) {

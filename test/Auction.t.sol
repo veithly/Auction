@@ -61,20 +61,58 @@ contract AuctionTest is Test {
         vm.deal(bidder1, 2 ether);
         vm.deal(bidder2, 3 ether);
 
+        // 第一个用户在正常时间出价1 ETH
         vm.prank(bidder1);
         auction.bid{value: 1 ether}();
 
+        // 记录第一次出价的加权值
+        uint firstBidWeighted = auction.highestWeightedBid();
+        assertEq(firstBidWeighted, 1 ether, "Normal bid should not be weighted");
+
+        // 跳转到拍卖结束前4分钟
         uint auctionEndTime = auction.auctionEnd();
         vm.warp(auctionEndTime - 4 minutes);
 
-        console2.log("Current time:", block.timestamp);
-        console2.log("Auction end time:", auctionEndTime);
-        console2.log("Time difference:", auctionEndTime - block.timestamp);
-
+        // bidder2在最后5分钟内出价1.1 ETH
         vm.prank(bidder2);
-        auction.bid{value: 1 ether}();
+        auction.bid{value: 1.1 ether}();
 
-        assertEq(auction.highestBidder(), bidder2);
+        // 验证新的最高出价者是bidder2
+        assertEq(auction.highestBidder(), bidder2, "Bidder2 should be highest bidder");
+
+        // 验证实际出价金额
+        assertEq(auction.highestBid(), 1.1 ether, "Actual bid amount should be 1.1 ether");
+
+        // 验证加权后的出价金额 (1.1 ether * 120%)
+        assertEq(
+            auction.highestWeightedBid(),
+            (1.1 ether * auction.TIME_WEIGHT_MULTIPLIER()) / 100,
+            "Weighted bid should be 1.32 ether"
+        );
+
+        // 测试第三个出价者在最后时段出价
+        address bidder3 = address(0xDEF0);
+        vm.deal(bidder3, 2 ether);
+        vm.prank(bidder3);
+
+        // 出价1.2 ETH，实际出价高于前一个出价
+        auction.bid{value: 1.2 ether}();
+
+        assertEq(auction.highestBidder(), bidder3, "Bidder3 should be highest bidder");
+        assertEq(
+            auction.highestWeightedBid(),
+            (1.2 ether * auction.TIME_WEIGHT_MULTIPLIER()) / 100,
+            "Weighted bid should be 1.44 ether"
+        );
+
+        // 添加一个测试，验证较低的出价会被拒绝
+        address bidder4 = address(0xBEEF);
+        vm.deal(bidder4, 2 ether);
+        vm.prank(bidder4);
+
+        // 尝试出价1.15 ETH（低于当前最高价1.2 ETH），应该被拒绝
+        vm.expectRevert("Bid must be higher than current highest bid");
+        auction.bid{value: 1.15 ether}();
     }
 
     function testAuctionEndTimeExtension() public {
