@@ -64,7 +64,12 @@ contract AuctionTest is Test {
         vm.prank(bidder1);
         auction.bid{value: 1 ether}();
 
-        vm.warp(block.timestamp + 6 days + 23 hours);
+        uint auctionEndTime = auction.auctionEnd();
+        vm.warp(auctionEndTime - 4 minutes);
+
+        console2.log("Current time:", block.timestamp);
+        console2.log("Auction end time:", auctionEndTime);
+        console2.log("Time difference:", auctionEndTime - block.timestamp);
 
         vm.prank(bidder2);
         auction.bid{value: 1 ether}();
@@ -76,12 +81,13 @@ contract AuctionTest is Test {
         address bidder = address(0x5678);
         vm.deal(bidder, 2 ether);
 
+        uint originalEndTime = auction.auctionEnd();
         vm.warp(block.timestamp + 6 days + 23 hours + 55 minutes);
 
         vm.prank(bidder);
         auction.bid{value: 1 ether}();
 
-        assertGt(auction.auctionEnd(), block.timestamp + 7 days);
+        assertEq(auction.auctionEnd(), block.timestamp + auction.TIME_EXTENSION());
     }
 
     function testEndAuction() public {

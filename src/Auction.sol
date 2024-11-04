@@ -9,12 +9,12 @@ contract Auction {
     mapping(address => uint) pendingReturns;
     bool ended;
 
-    // 新增变量
     uint public constant COOL_DOWN_PERIOD = 5 minutes;
     uint public constant TIME_EXTENSION = 5 minutes;
     uint public constant LAST_MINUTES_THRESHOLD = 5 minutes;
     uint public constant TIME_WEIGHT_MULTIPLIER = 120; // 120%
     mapping(address => uint) lastBidTime;
+    uint public highestWeightedBid;
 
     event HighestBidIncreased(address bidder, uint amount);
     event AuctionEnded(address winner, uint amount);
@@ -26,29 +26,44 @@ contract Auction {
 
     function bid() public payable {
         require(block.timestamp < auctionEnd, "Auction already ended");
-        require(msg.value > highestBid, "There already is a higher bid");
 
-        // 实现冷却机制
-        require(block.timestamp > lastBidTime[msg.sender] + COOL_DOWN_PERIOD, "Bidding too soon");
-
-        // 实现时间加权
-        uint weightedBid = msg.value;
-        if (auctionEnd - block.timestamp <= LAST_MINUTES_THRESHOLD) {
-            weightedBid = msg.value * TIME_WEIGHT_MULTIPLIER / 100;
+        // 实现冷却检查
+        if (lastBidTime[msg.sender] != 0) {
+            require(block.timestamp > lastBidTime[msg.sender] + COOL_DOWN_PERIOD, "Bidding too soon");
         }
 
-        require(weightedBid > highestBid, "There already is a higher weighted bid");
+        // 判断是否在最后时段
+        bool isInLastMinutes = (auctionEnd - block.timestamp <= LAST_MINUTES_THRESHOLD);
+
+        // 计算当前出价的加权值
+        uint weightedBid = msg.value;
+        uint currentHighestWeightedBid = highestBid;
+
+        if (isInLastMinutes) {
+            weightedBid = msg.value * TIME_WEIGHT_MULTIPLIER / 100;
+            // 检查之前的最高出价是否在最后时段内
+            if (lastBidTime[highestBidder] == 0 ||
+                auctionEnd - lastBidTime[highestBidder] > LAST_MINUTES_THRESHOLD) {
+                currentHighestWeightedBid = highestBid;
+            } else {
+                currentHighestWeightedBid = highestBid * TIME_WEIGHT_MULTIPLIER / 100;
+            }
+        }
+
+        require(weightedBid > currentHighestWeightedBid, "There already is a higher weighted bid");
 
         if (highestBid != 0) {
             pendingReturns[highestBidder] += highestBid;
         }
+
         highestBidder = msg.sender;
         highestBid = msg.value;
+        highestWeightedBid = weightedBid;
         lastBidTime[msg.sender] = block.timestamp;
         emit HighestBidIncreased(msg.sender, msg.value);
 
         // 实现拍卖终局延长
-        if (auctionEnd - block.timestamp <= LAST_MINUTES_THRESHOLD) {
+        if (isInLastMinutes) {
             auctionEnd = block.timestamp + TIME_EXTENSION;
         }
     }
