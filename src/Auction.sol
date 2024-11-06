@@ -18,6 +18,7 @@ contract Auction {
 
     event HighestBidIncreased(address bidder, uint amount);
     event AuctionEnded(address winner, uint amount);
+    event Withdrawal(address indexed bidder, uint amount, bool success);
 
     constructor(uint _biddingTime, address payable _beneficiary) {
         beneficiary = _beneficiary;
@@ -73,10 +74,14 @@ contract Auction {
         uint amount = pendingReturns[msg.sender];
         if (amount > 0) {
             pendingReturns[msg.sender] = 0;
+
             if (!payable(msg.sender).send(amount)) {
                 pendingReturns[msg.sender] = amount;
+                emit Withdrawal(msg.sender, amount, false);  // 提现失败事件
                 return false;
             }
+
+            emit Withdrawal(msg.sender, amount, true);  // 提现成功事件
         }
         return true;
     }
